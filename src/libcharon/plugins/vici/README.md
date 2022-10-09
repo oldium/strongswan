@@ -631,9 +631,9 @@ pools with the same name get updated, if possible.
 		<pool name> = {
 			addrs = <subnet of virtual IP pool addresses>
 			<attribute type>* = [
-				# attribute type is one of address, dns, nbns, dhcp, netmask,
-				# server, subnet, split_include, split_exclude or a numerical
-				# attribute type identifier.
+				# attribute type is one of address, dns, domain, nbns, dhcp,
+				# netmask, server, subnet, split_include, split_exclude or a
+				# numerical attribute type identifier.
 				<list of attributes for type>
 			]
 		}

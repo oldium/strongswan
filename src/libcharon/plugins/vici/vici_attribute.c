@@ -406,35 +406,48 @@ typedef struct {
 	pool_t *pool;
 } load_data_t;
 
+/**
+ * Pool list item value types
+ */
+typedef enum value_type_t {
+	VALUE_STRING,
+	VALUE_ADDR
+} value_type_t;
+
 CALLBACK(pool_li, bool,
-	load_data_t *data, vici_message_t *message, char *name, chunk_t value)
+		 load_data_t *data, vici_message_t *message, char *name, chunk_t value)
 {
 	struct {
 		char *name;
+		value_type_t type;
 		configuration_attribute_type_t v4;
 		configuration_attribute_type_t v6;
 	} keys[] = {
-		{"address",			INTERNAL_IP4_ADDRESS,	INTERNAL_IP6_ADDRESS	},
-		{"dns",				INTERNAL_IP4_DNS,		INTERNAL_IP6_DNS		},
-		{"nbns",			INTERNAL_IP4_NBNS,		INTERNAL_IP6_NBNS		},
-		{"dhcp",			INTERNAL_IP4_DHCP,		INTERNAL_IP6_DHCP		},
-		{"netmask",			INTERNAL_IP4_NETMASK,	INTERNAL_IP6_NETMASK	},
-		{"server",			INTERNAL_IP4_SERVER,	INTERNAL_IP6_SERVER		},
-		{"subnet",			INTERNAL_IP4_SUBNET,	INTERNAL_IP6_SUBNET		},
-		{"split_include",	UNITY_SPLIT_INCLUDE,	UNITY_SPLIT_INCLUDE		},
-		{"split_exclude",	UNITY_LOCAL_LAN,		UNITY_LOCAL_LAN			},
+		{"address",			VALUE_ADDR,     INTERNAL_IP4_ADDRESS,	INTERNAL_IP6_ADDRESS	},
+		{"dns",				VALUE_ADDR,     INTERNAL_IP4_DNS,		INTERNAL_IP6_DNS		},
+		{"nbns",			VALUE_ADDR,     INTERNAL_IP4_NBNS,		INTERNAL_IP6_NBNS		},
+		{"dhcp",			VALUE_ADDR,     INTERNAL_IP4_DHCP,		INTERNAL_IP6_DHCP		},
+		{"netmask",			VALUE_ADDR,     INTERNAL_IP4_NETMASK,	INTERNAL_IP6_NETMASK	},
+		{"server",			VALUE_ADDR,     INTERNAL_IP4_SERVER,	INTERNAL_IP6_SERVER		},
+		{"subnet",			VALUE_ADDR,     INTERNAL_IP4_SUBNET,	INTERNAL_IP6_SUBNET		},
+		{"split_include",	VALUE_ADDR,     UNITY_SPLIT_INCLUDE,	UNITY_SPLIT_INCLUDE		},
+		{"split_exclude",	VALUE_ADDR,     UNITY_LOCAL_LAN,		UNITY_LOCAL_LAN			},
+		{"domain",          VALUE_STRING,   INTERNAL_DNS_DOMAIN,    0                       },
 	};
 	char buf[256];
 	int i, index = -1, mask = -1, type = 0;
 	chunk_t encoding;
 	attribute_t *attr;
 	host_t *host = NULL;
+	bool printable = FALSE;
+	value_type_t value_type = VALUE_ADDR;
 
 	for (i = 0; i < countof(keys); i++)
 	{
 		if (streq(name, keys[i].name))
 		{
 			index = i;
+			value_type = keys[i].type;
 			break;
 		}
 	}
@@ -450,13 +463,17 @@ CALLBACK(pool_li, bool,
 
 	if (vici_stringify(value, buf, sizeof(buf)))
 	{
-		if (strchr(buf, '/'))
+		printable = TRUE;
+		if (value_type == VALUE_ADDR)
 		{
-			host = host_create_from_subnet(buf, &mask);
-		}
-		else
-		{
-			host = host_create_from_string(buf, 0);
+			if (strchr(buf, '/'))
+			{
+				host = host_create_from_subnet(buf, &mask);
+			}
+			else
+			{
+				host = host_create_from_string(buf, 0);
+			}
 		}
 	}
 	if (host)
@@ -500,6 +517,16 @@ CALLBACK(pool_li, bool,
 		}
 		host->destroy(host);
 	}
+	else if (value_type == VALUE_STRING)
+	{
+		if (!printable)
+		{
+			data->request->reply = create_reply("invalid attribute value "
+												"for %s", name);
+			return FALSE;
+		}
+		encoding = chunk_clone(value);
+	}
 	else
 	{
 		if (index != -1)
@@ -512,8 +539,8 @@ CALLBACK(pool_li, bool,
 		encoding = chunk_clone(value);
 	}
 	INIT(attr,
-		.type = type,
-		.value = encoding,
+		 .type = type,
+		 .value = encoding,
 	);
 	array_insert_create(&data->pool->attrs, ARRAY_TAIL, attr);
 	return TRUE;

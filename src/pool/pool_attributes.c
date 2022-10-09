@@ -69,6 +69,7 @@ static const attr_info_t attr_info[] = {
 	{ "internal_ip6_server",  VALUE_ADDR,   INTERNAL_IP6_SERVER,  0 },
 	{ "server",               VALUE_ADDR,   INTERNAL_IP4_SERVER,
 											INTERNAL_IP6_SERVER     },
+	{ "domain",               VALUE_STRING, INTERNAL_DNS_DOMAIN,  0 },
 	{ "application_version",  VALUE_STRING, APPLICATION_VERSION,  0 },
 	{ "version",              VALUE_STRING, APPLICATION_VERSION,  0 },
 	{ "unity_banner",         VALUE_STRING, UNITY_BANNER,         0 },

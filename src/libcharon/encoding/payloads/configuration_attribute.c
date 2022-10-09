@@ -176,6 +176,7 @@ METHOD(payload_t, verify, status_t,
 		case APPLICATION_VERSION:
 		case INTERNAL_IP4_SERVER:
 		case INTERNAL_IP6_SERVER:
+		case INTERNAL_DNS_DOMAIN:
 		case XAUTH_TYPE:
 		case XAUTH_USER_NAME:
 		case XAUTH_USER_PASSWORD:

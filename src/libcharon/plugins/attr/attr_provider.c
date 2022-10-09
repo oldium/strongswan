@@ -178,26 +178,36 @@ static void add_legacy_entry(private_attr_provider_t *this, char *key, int nr,
 }
 
 /**
+ * Attribute key types
+ */
+typedef enum value_type_t {
+	VALUE_STRING,
+	VALUE_ADDR
+} value_type_t;
+
+/**
  * Key to attribute type mappings, for v4 and v6 attributes
  */
 typedef struct {
 	char *name;
+	value_type_t type;
 	configuration_attribute_type_t v4;
 	configuration_attribute_type_t v6;
 	ike_version_t ike;
 } attribute_type_key_t;
 
 static attribute_type_key_t keys[] = {
-	{"address",			INTERNAL_IP4_ADDRESS,	INTERNAL_IP6_ADDRESS,	IKE_ANY},
-	{"dns",				INTERNAL_IP4_DNS,		INTERNAL_IP6_DNS,		IKE_ANY},
-	{"nbns",			INTERNAL_IP4_NBNS,		INTERNAL_IP6_NBNS,		IKE_ANY},
-	{"dhcp",			INTERNAL_IP4_DHCP,		INTERNAL_IP6_DHCP,		IKE_ANY},
-	{"netmask",			INTERNAL_IP4_NETMASK,	INTERNAL_IP6_NETMASK,	IKE_ANY},
-	{"server",			INTERNAL_IP4_SERVER,	INTERNAL_IP6_SERVER,	IKE_ANY},
-	{"subnet",			INTERNAL_IP4_SUBNET,	INTERNAL_IP6_SUBNET,	IKE_ANY},
-	{"p-cscf",			P_CSCF_IP4_ADDRESS,		P_CSCF_IP6_ADDRESS,		IKEV2},
-	{"split-include",	UNITY_SPLIT_INCLUDE,	UNITY_SPLIT_INCLUDE,	IKEV1},
-	{"split-exclude",	UNITY_LOCAL_LAN,		UNITY_LOCAL_LAN,		IKEV1},
+	{"address",			VALUE_ADDR,		INTERNAL_IP4_ADDRESS,	INTERNAL_IP6_ADDRESS,	IKE_ANY},
+	{"dns",				VALUE_ADDR,		INTERNAL_IP4_DNS,		INTERNAL_IP6_DNS,		IKE_ANY},
+	{"nbns",			VALUE_ADDR,		INTERNAL_IP4_NBNS,		INTERNAL_IP6_NBNS,		IKE_ANY},
+	{"dhcp",			VALUE_ADDR,		INTERNAL_IP4_DHCP,		INTERNAL_IP6_DHCP,		IKE_ANY},
+	{"netmask",			VALUE_ADDR,		INTERNAL_IP4_NETMASK,	INTERNAL_IP6_NETMASK,	IKE_ANY},
+	{"server",			VALUE_ADDR,		INTERNAL_IP4_SERVER,	INTERNAL_IP6_SERVER,	IKE_ANY},
+	{"subnet",			VALUE_ADDR,		INTERNAL_IP4_SUBNET,	INTERNAL_IP6_SUBNET,	IKE_ANY},
+	{"p-cscf",			VALUE_ADDR,		P_CSCF_IP4_ADDRESS,		P_CSCF_IP6_ADDRESS,		IKEV2},
+	{"split-include",	VALUE_ADDR,		UNITY_SPLIT_INCLUDE,	UNITY_SPLIT_INCLUDE,	IKEV1},
+	{"split-exclude",	VALUE_ADDR,		UNITY_LOCAL_LAN,		UNITY_LOCAL_LAN,		IKEV1},
+	{"domain",			VALUE_STRING,	INTERNAL_DNS_DOMAIN,	0,						IKEV2},
 };
 
 /**
@@ -208,6 +218,7 @@ static void load_entries(private_attr_provider_t *this)
 	enumerator_t *enumerator, *tokens;
 	char *key, *value, *token;
 	int i;
+	value_type_t value_type = VALUE_ADDR;
 
 	for (i = 1; i <= SERVER_MAX; i++)
 	{
@@ -223,7 +234,7 @@ static void load_entries(private_attr_provider_t *this)
 		attribute_type_key_t *mapped = NULL;
 		attribute_entry_t *entry;
 		chunk_t data;
-		host_t *host;
+		host_t *host = NULL;
 		char *pos;
 		int i, mask = -1, family;
 
@@ -239,6 +250,7 @@ static void load_entries(private_attr_provider_t *this)
 				if (streq(key, keys[i].name))
 				{
 					mapped = &keys[i];
+					value_type = mapped->type;
 					break;
 				}
 			}
@@ -251,20 +263,23 @@ static void load_entries(private_attr_provider_t *this)
 		tokens = enumerator_create_token(value, ",", " ");
 		while (tokens->enumerate(tokens, &token))
 		{
-			pos = strchr(token, '/');
-			if (pos)
+			if (value_type == VALUE_ADDR)
 			{
-				*(pos++) = '\0';
-				mask = atoi(pos);
-			}
-			host = host_create_from_string(token, 0);
-			if (!host)
-			{
-				if (mapped)
+				pos = strchr(token, '/');
+				if (pos)
 				{
-					DBG1(DBG_CFG, "invalid host in key %s: %s", key, token);
-					continue;
+					*(pos++) = '\0';
+					mask = atoi(pos);
 				}
+				host = host_create_from_string(token, 0);
+			}
+			if (value_type == VALUE_ADDR && !host && mapped)
+			{
+				DBG1(DBG_CFG, "invalid host in key %s: %s", key, token);
+				continue;
+			}
+			else if (!host || (value_type == VALUE_STRING))
+			{
 				/* store numeric attributes that are no IP addresses as strings */
 				data = chunk_clone(chunk_from_str(token));
 			}

@@ -253,6 +253,10 @@ METHOD(attribute_handler_t, handle, bool,
 		case INTERNAL_IP6_DNS:
 			addr = host_create_from_chunk(AF_INET6, data, 0);
 			break;
+		case INTERNAL_DNS_DOMAIN:
+			DBG1(DBG_IKE, "DNS server domain %.%s found", (int)data.len,
+				 data.ptr);
+			return TRUE;
 		default:
 			return FALSE;
 	}
@@ -371,6 +375,8 @@ typedef struct {
 	bool v4;
 	/** request IPv6 DNS? */
 	bool v6;
+	/** request DNS DOMAIN? */
+	bool domain;
 } attribute_enumerator_t;
 
 METHOD(enumerator_t, attribute_enumerate, bool,
@@ -392,6 +398,13 @@ METHOD(enumerator_t, attribute_enumerate, bool,
 		*type = INTERNAL_IP6_DNS;
 		*data = chunk_empty;
 		this->v6 = FALSE;
+		return TRUE;
+	}
+	if (this->domain)
+	{
+		*type = INTERNAL_DNS_DOMAIN;
+		*data = chunk_empty;
+		this->domain = FALSE;
 		return TRUE;
 	}
 	return FALSE;
@@ -426,14 +439,18 @@ METHOD(attribute_handler_t, create_attribute_enumerator, enumerator_t*,
 {
 	attribute_enumerator_t *enumerator;
 
+	bool v4 = has_host_family(vips, AF_INET);
+	bool v6 = has_host_family(vips, AF_INET6);
+
 	INIT(enumerator,
 		.public = {
 			.enumerate = enumerator_enumerate_default,
 			.venumerate = _attribute_enumerate,
 			.destroy = (void*)free,
 		},
-		.v4 = has_host_family(vips, AF_INET),
-		.v6 = has_host_family(vips, AF_INET6),
+		.v4 = v4,
+		.v6 = v6,
+		.domain = v4 || v6,
 	);
 	return &enumerator->public;
 }
